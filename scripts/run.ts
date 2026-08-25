@@ -1,6 +1,7 @@
 import "dotenv/config";
 import { makeExchange } from "../src/config.js";
-import { newState, tick } from "../src/agent.js";
+import { newState, tick, sweepSettled } from "../src/agent.js";
+import { VENUE_ID } from "../src/config.js";
 
 const POLL_MS = 20000;
 
@@ -21,8 +22,12 @@ async function main() {
 
   for (;;) {
     const t = new Date().toISOString().slice(11, 19);
-    try { state = await tick(exchange, state, (m: string) => console.log(`[${t}] ${m}`)); }
-    catch (e) { console.log(`[${t}] tick failed: ${String(e).slice(0, 160)}`); }
+    const log = (m: string) => console.log(`[${t}] ${m}`);
+    try {
+      const prev = state.currentMarketId;
+      state = await tick(exchange, state, log);
+      if (prev && prev !== state.currentMarketId) await sweepSettled(exchange, VENUE_ID, log);
+    } catch (e) { log(`tick failed: ${String(e).slice(0, 160)}`); }
     await new Promise(r => setTimeout(r, POLL_MS));
   }
 }
