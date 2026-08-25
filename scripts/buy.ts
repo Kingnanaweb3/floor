@@ -57,7 +57,7 @@ async function main() {
   console.log("tx:", receipt?.transactionHash, "status:", receipt?.status);
   console.log("filled:", order.filled, "of", order.amount);
 
-  const down = await exchange.client.getOutcomeBalance(w.outcomeToken, me, w.noId);
+  const down = await exchange.client.getOutcomeBalance({ outcomeToken: w.outcomeToken, account: me, id: w.noId });
   console.log("down tokens held:", formatUnits(down as bigint, w.decimals));
   process.exit(0);
 }

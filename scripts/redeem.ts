@@ -18,11 +18,20 @@ async function main() {
 
   let claimed = 0;
   for (const row of recent) {
-    const oc: any = await retry(() => exchange.client.getMarketOnchain(row.marketId));
+    let oc: any;
+    try { oc = await retry(() => exchange.client.getMarketOnchain(row.marketId)); }
+    catch (e) { console.log(`  skip ${row.marketId.slice(-6)}: read failed`); continue; }
+    if (!oc || !oc.outcomeToken || oc.yesId == null || oc.noId == null) {
+      console.log(`  skip ${row.marketId.slice(-6)}: incomplete on-chain record`);
+      continue;
+    }
     if (!oc.isResolved && !oc.isVoided) continue;
 
-    const up = await exchange.client.getOutcomeBalance(oc.outcomeToken, me, oc.yesId) as bigint;
-    const down = await exchange.client.getOutcomeBalance(oc.outcomeToken, me, oc.noId) as bigint;
+    let up = 0n, down = 0n;
+    try {
+      up = await exchange.client.getOutcomeBalance({ outcomeToken: oc.outcomeToken, account: me, id: oc.yesId }) as bigint;
+      down = await exchange.client.getOutcomeBalance({ outcomeToken: oc.outcomeToken, account: me, id: oc.noId }) as bigint;
+    } catch (e) { console.log(`  skip ${row.marketId.slice(-6)}: balance read failed`); continue; }
     if (up === 0n && down === 0n) continue;
 
     const held: Record<0 | 1, bigint> = { 0: up, 1: down };
