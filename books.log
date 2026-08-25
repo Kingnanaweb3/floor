@@ -1,0 +1,132 @@
+live on marketCreator venue: 4 
+
+ETH 15m  strike=0  479s left
+  symbol: ETH-0-25AUG26-1115/tUSDC#YES
+  bids: [
+  [
+    0.749,
+    200
+  ],
+  [
+    0.739,
+    330
+  ],
+  [
+    0.729,
+    460
+  ]
+] 
+  asks: [
+  [
+    0.775,
+    200
+  ],
+  [
+    0.784,
+    330
+  ],
+  [
+    0.794,
+    460
+  ]
+]
+
+BTC 15m  strike=0  479s left
+  symbol: BTC-0-25AUG26-1115/tUSDC#YES
+  bids: [
+  [
+    0.823,
+    200
+  ],
+  [
+    0.814,
+    330
+  ],
+  [
+    0.805,
+    460
+  ]
+] 
+  asks: [
+  [
+    0.847,
+    200
+  ],
+  [
+    0.856,
+    330
+  ],
+  [
+    0.865,
+    460
+  ]
+]
+
+ETH 60m  strike=0  3179s left
+  symbol: ETH-0-25AUG26-1200-9278/tUSDC#YES
+  bids: [
+  [
+    0.599,
+    200
+  ],
+  [
+    0.594,
+    330
+  ],
+  [
+    0.583,
+    460
+  ]
+] 
+  asks: [
+  [
+    0.628,
+    200
+  ],
+  [
+    0.644,
+    330
+  ],
+  [
+    0.654,
+    460
+  ]
+]
+
+BTC 60m  strike=0  3179s left
+  symbol: BTC-0-25AUG26-1200-9277/tUSDC#YES
+  bids: [
+  [
+    0.641,
+    200
+  ],
+  [
+    0.631,
+    330
+  ],
+  [
+    0.621,
+    460
+  ]
+] 
+  asks: [
+  [
+    0.67,
+    200
+  ],
+  [
+    0.68,
+    330
+  ],
+  [
+    0.69,
+    460
+  ]
+]
+
+--- FINALIZED SAMPLE (redemption path) ---
+BTC 15m winner: 1 voided: false trades: 0 vol: 0
+ETH 15m winner: 0 voided: false trades: 0 vol: 0
+ETH 15m winner: 0 voided: false trades: 0 vol: 0
+BTC 15m winner: 0 voided: false trades: 0 vol: 0
+BTC 15m winner: 1 voided: false trades: 0 vol: 0
