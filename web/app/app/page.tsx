@@ -194,9 +194,9 @@ export default function AppPage() {
       </header>
 
       <div className="mx-auto max-w-[1160px] px-[clamp(20px,5vw,48px)] py-10">
-        <div className="grid gap-5 lg:grid-cols-[1fr_1.1fr]">
+        <div className="grid items-stretch gap-5 lg:grid-cols-2">
 
-          <div className="min-w-0 rounded-[18px] border border-line bg-card p-[26px]">
+          <div className="flex min-w-0 flex-col rounded-[18px] border border-line bg-card p-[26px]">
             <div className="mono-label text-ink3">Open windows</div>
             <div className="mt-4 space-y-2">
               {windows.length === 0 ? (
@@ -217,7 +217,7 @@ export default function AppPage() {
             </div>
           </div>
 
-          <div className="min-w-0 rounded-[18px] border border-line bg-card p-[26px]">
+          <div className="flex min-w-0 flex-col rounded-[18px] border border-line bg-card p-[26px]">
             <div className="mono-label text-ink3">Get coverage</div>
 
             <div className="mt-4">
@@ -278,8 +278,8 @@ export default function AppPage() {
           </div>
         </div>
 
-        <div className="mt-5 grid gap-5 lg:grid-cols-2">
-          <div className="min-w-0 rounded-[18px] border border-line bg-card p-[26px]">
+        <div className="mt-5 grid items-stretch gap-5 lg:grid-cols-2">
+          <div className="flex min-w-0 flex-col rounded-[18px] border border-line bg-card p-[26px]">
             <div className="mono-label text-ink3">Your positions</div>
             <div className="mt-4 space-y-2">
               {positions.length === 0 ? (
@@ -301,7 +301,7 @@ export default function AppPage() {
             </div>
           </div>
 
-          <div className="min-w-0 rounded-[18px] border border-line bg-card p-[26px]">
+          <div className="flex min-w-0 flex-col rounded-[18px] border border-line bg-card p-[26px]">
             <div className="flex items-center justify-between">
               <div className="mono-label text-ink3">The roll agent</div>
               <a href={"https://shannon-explorer.somnia.network/address/" + AGENT} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-[11px] text-ink3 hover:text-ink2">

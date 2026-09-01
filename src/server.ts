@@ -18,9 +18,9 @@ const pub = createPublicClient({ chain: somniaShannon, transport: http() });
 
 let cache: { at: number; windows: any[] } = { at: 0, windows: [] };
 async function windows() {
-  if (Date.now() - cache.at < 10000) return cache.windows;
+  if (cache.windows.length > 0 && Date.now() - cache.at < 10000) return cache.windows;
   const w = await retry(() => findLiveWindows(exchange));
-  cache = { at: Date.now(), windows: w };
+  if (w.length > 0) cache = { at: Date.now(), windows: w };
   return w;
 }
 
