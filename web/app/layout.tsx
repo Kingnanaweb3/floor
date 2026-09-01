@@ -3,7 +3,7 @@ import { Inter_Tight, DM_Sans, Roboto_Mono } from "next/font/google";
 import "./globals.css";
 
 const display = Inter_Tight({ subsets: ["latin"], weight: ["500"], variable: "--font-display" });
-const sans = DM_Sans({ subsets: ["latin"], weight: ["300", "400", "500"], variable: "--font-sans" });
+const sans = DM_Sans({ subsets: ["latin"], weight: ["400", "500"], variable: "--font-sans" });
 const mono = Roboto_Mono({ subsets: ["latin"], weight: ["400"], variable: "--font-mono" });
 
 export const metadata: Metadata = {

@@ -139,9 +139,61 @@ app.get("/status/:address", async (req, res) => {
         status: x.market?.status,
         expiresAt: x.market?.expiry ? new Date(Number(x.market.expiry) * 1000).toISOString() : null,
         won: x.market?.winningOutcome == null ? null : x.market.winningOutcome === x.outcomeIndex,
+        avgPrice: (function () {
+          const d = x.market?.quoteDecimals ?? 6;
+          const legs = (p.trades ?? []).filter((t: any) =>
+            t.market?.marketAddress === x.market?.marketAddress &&
+            (x.outcomeIndex === 1 ? t.side === "BUY_NO" : t.side === "BUY_YES"));
+          if (legs.length === 0) return null;
+          let qty = 0, cost = 0;
+          for (const t of legs) {
+            const q = Number(t.quantity) / 10 ** d;
+            const up = Number(t.fillPrice) / 10 ** d;
+            const price = x.outcomeIndex === 1 ? 1 - up : up;
+            qty += q; cost += q * price;
+          }
+          return qty > 0 ? Number((cost / qty).toFixed(4)) : null;
+        })(),
       })),
       trades: (p.trades ?? []).length,
     });
+  } catch (e) { res.status(502).json({ error: String(e).slice(0, 200) }); }
+});
+
+const SPOT: Record<string, { token: `0x${string}`; pool: `0x${string}`; decimals: number }> = {
+  ETH: { token: "0x4d8E02BBfCf205828A8352Af4376b165E123D7b0", pool: "0xD180195da5459C7a0DEA188ed61216ec43682b50", decimals: 18 },
+  BTC: { token: "0x4e85DC48a70DA1298489d5B6FC2492767d98f384", pool: "0x3605f28aA7C50e7441211e77Cb0762d49539326C", decimals: 8 },
+};
+const LEVELS_ABI = [{ name: "getBookLevels", type: "function", stateMutability: "view",
+  inputs: [{ type: "bool" }, { type: "uint64" }],
+  outputs: [{ type: "tuple[]", components: [{ type: "uint256", name: "price" }, { type: "uint256", name: "quantity" }] }] }] as const;
+
+app.get("/spot/:address", async (req, res) => {
+  try {
+    const who = req.params.address as `0x${string}`;
+    if (!/^0x[a-fA-F0-9]{40}$/.test(who)) return res.status(400).json({ error: "bad address" });
+    const out: any[] = [];
+    for (const asset of Object.keys(SPOT)) {
+      const s = SPOT[asset];
+      const bal = await pub.readContract({ address: s.token, abi: erc20Abi, functionName: "balanceOf", args: [who] }) as bigint;
+      let price = 0;
+      try {
+        const bids = await pub.readContract({ address: s.pool, abi: LEVELS_ABI, functionName: "getBookLevels", args: [true, 1n] }) as any[];
+        const asks = await pub.readContract({ address: s.pool, abi: LEVELS_ABI, functionName: "getBookLevels", args: [false, 1n] }) as any[];
+        const b = bids[0] ? Number(bids[0].price) / 1e18 : 0;
+        const a = asks[0] ? Number(asks[0].price) / 1e18 : 0;
+        price = b && a ? (b + a) / 2 : (b || a);
+      } catch {}
+      const qty = Number(bal) / 10 ** s.decimals;
+      out.push({
+        asset,
+        quantity: Number(qty.toFixed(8)),
+        price: Number(price.toFixed(2)),
+        value: Number((qty * price).toFixed(2)),
+        drop2pct: Number((qty * price * 0.02).toFixed(2)),
+      });
+    }
+    res.json({ holdings: out });
   } catch (e) { res.status(502).json({ error: String(e).slice(0, 200) }); }
 });
 
