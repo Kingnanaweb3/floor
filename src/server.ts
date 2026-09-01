@@ -87,9 +87,16 @@ app.post("/cover", async (req, res) => {
     const { q, params } = await priceCoverage(w, Number(cover));
     if (!q.fillable) return res.status(409).json({ error: "insufficient depth", available: q.contracts });
 
-    const worst = q.levels[q.levels.length - 1]?.price ?? 0.99;
+    // SLIP_GUARD: re-read the book right before building calldata; the first
+    // read can be up to 10s stale from the window cache.
+    const fresh = await priceCoverage(w, Number(cover));
+    if (!fresh.q.fillable) return res.status(409).json({ error: "book moved, retry" });
+    const drift = Math.abs(fresh.q.pricePerContract - q.pricePerContract);
+    if (drift > 0.05) return res.status(409).json({ error: "price moved " + drift.toFixed(3) + ", retry" });
+
+    const worst = fresh.q.levels[fresh.q.levels.length - 1]?.price ?? 0.99;
     const limit = Math.min(0.99, worst + 0.02);
-    const costRaw = BigInt(Math.ceil(limit * q.contracts * 10 ** w.decimals));
+    const costRaw = BigInt(Math.ceil(limit * fresh.q.contracts * 10 ** w.decimals));
 
     const allowance = await pub.readContract({
       address: w.collateral, abi: erc20Abi, functionName: "allowance",
@@ -99,7 +106,7 @@ app.post("/cover", async (req, res) => {
     const txs = [];
     if (allowance < costRaw) txs.push(buildApproveTx(w.collateral, w.pool, costRaw * 10n, CHAIN_ID));
     txs.push(buildCoverTx({
-      pool: w.pool, downPrice: limit, contracts: q.contracts, decimals: w.decimals,
+      pool: w.pool, downPrice: limit, contracts: fresh.q.contracts, decimals: w.decimals,
       tickRaw: BigInt(params.tickSize), lotRaw: BigInt(params.lotSize),
       expirySec: Math.min(w.expiry, Math.floor(Date.now() / 1000) + 300),
       chainId: CHAIN_ID,
@@ -108,9 +115,9 @@ app.post("/cover", async (req, res) => {
     res.json({
       window: { symbol: w.symbol, expiresAt: new Date(w.expiry * 1000).toISOString() },
       quote: {
-        contracts: q.contracts, avgPrice: Number(q.pricePerContract.toFixed(4)),
-        cost: Number(q.cost.toFixed(4)), maxLoss: Number(q.maxLoss.toFixed(4)),
-        payoutIfDown: q.payoutIfDown, limitPrice: Number(limit.toFixed(4)),
+        contracts: fresh.q.contracts, avgPrice: Number(fresh.q.pricePerContract.toFixed(4)),
+        cost: Number(fresh.q.cost.toFixed(4)), maxLoss: Number(fresh.q.maxLoss.toFixed(4)),
+        payoutIfDown: fresh.q.payoutIfDown, limitPrice: Number(limit.toFixed(4)),
       },
       allowance: formatUnits(allowance, w.decimals),
       transactions: txs,

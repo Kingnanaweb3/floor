@@ -22,9 +22,9 @@ function clock(iso) {
   var left = Math.max(0, Math.floor((new Date(iso).getTime() - Date.now()) / 1000));
   var h = Math.floor(left / 3600);
   var m = Math.floor((left % 3600) / 60);
-  var s = left % 60;
+  var sec = left % 60;
   if (h > 0) return h + "h " + String(m).padStart(2, "0") + "m";
-  return m + ":" + String(s).padStart(2, "0");
+  return m + ":" + String(sec).padStart(2, "0");
 }
 
 export default function AppPage() {
@@ -257,6 +257,20 @@ export default function AppPage() {
                 <span className="min-w-0 break-words">{String(msg.text).slice(0, 200)}</span>
               </div>
             ) : null}
+
+            {(function () {
+              if (!sel) return null;
+              var held = positions.filter(function (x) {
+                return x.side === "DOWN" && x.status === "Trading" && x.asset === sel.asset && x.interval === label(sel.intervalSec);
+              });
+              if (held.length === 0) return null;
+              var n = held.reduce(function (a, x) { return a + Number(x.contracts || 0); }, 0);
+              return (
+                <div className="mt-3 rounded-[10px] border border-line px-4 py-3 text-[12px] text-ink2">
+                  You already hold {n} contracts on this window. Buying again adds to it.
+                </div>
+              );
+            })()}
 
             <p className="small mt-4 text-ink3">
               Floor returns an unsigned transaction. You sign it. Coverage lasts until this window closes.
