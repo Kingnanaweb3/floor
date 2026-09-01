@@ -3,7 +3,7 @@ import express from "express";
 import cors from "cors";
 import { createPublicClient, http, erc20Abi, formatUnits } from "viem";
 import { somniaShannon } from "@somnia-chain/markets-sdk/chains";
-import { makeExchange, retry } from "./config.js";
+import { VENUE_ID, makeExchange, retry } from "./config.js";
 import { findLiveWindows, pickWindow } from "./markets.js";
 import { quoteCoverage, downBook } from "./coverage.js";
 import { buildCoverTx, buildApproveTx } from "./tx.js";
@@ -59,15 +59,20 @@ app.get("/quote", async (req, res) => {
     if (!w) return res.status(404).json({ error: "no live window", asset, intervalSec });
 
     const { q } = await priceCoverage(w, cover);
+    const worstLvl = q.levels[q.levels.length - 1]?.price ?? 0.99;
+    const lim = Math.min(0.99, worstLvl + 0.02);
     res.json({
       window: { symbol: w.symbol, asset: w.asset, intervalSec: w.intervalSec, expiresAt: new Date(w.expiry * 1000).toISOString() },
       fillable: q.fillable,
       contracts: q.contracts,
       avgPrice: Number(q.pricePerContract.toFixed(4)),
-      cost: Number(q.cost.toFixed(4)),
+      cost: Number((lim * q.contracts).toFixed(4)),
       payoutIfDown: q.payoutIfDown,
       netIfDown: Number(q.netIfDown.toFixed(4)),
-      maxLoss: Number(q.maxLoss.toFixed(4)),
+      maxLoss: Number((lim * q.contracts).toFixed(4)),
+      avgCost: Number(q.cost.toFixed(4)),
+      maxCost: Number((lim * q.contracts).toFixed(4)),
+      limitPrice: Number(lim.toFixed(4)),
     });
   } catch (e) { res.status(502).json({ error: String(e).slice(0, 200) }); }
 });
@@ -194,6 +199,50 @@ app.get("/spot/:address", async (req, res) => {
       });
     }
     res.json({ holdings: out });
+  } catch (e) { res.status(502).json({ error: String(e).slice(0, 200) }); }
+});
+
+const REDEEM_ABI = [{ name: "redeem", type: "function", stateMutability: "nonpayable",
+  inputs: [{ name: "operatorId", type: "uint32" }, { name: "venueId", type: "bytes32" },
+           { name: "marketId", type: "bytes32" }, { name: "outcomeIdx", type: "uint8" },
+           { name: "amount", type: "uint256" }],
+  outputs: [] }] as const;
+const OPERATOR_ID = 2;
+const MODULE = "0x3ecC694Cef705358864a646142ac17A90E29e388" as const;
+
+app.get("/claimable/:address", async (req, res) => {
+  try {
+    const me = req.params.address as `0x${string}`;
+    if (!/^0x[a-fA-F0-9]{40}$/.test(me)) return res.status(400).json({ error: "bad address" });
+    const settled: any[] = await retry(() =>
+      exchange.client.listBinaryMarkets({ venueId: VENUE_ID, status: "Finalized", limit: 60 }));
+    const recent = settled.sort((a, b) => Number(b.expiry ?? 0) - Number(a.expiry ?? 0)).slice(0, 25);
+    const out: any[] = [];
+    for (const row of recent) {
+      let oc: any;
+      try { oc = await retry(() => exchange.client.getMarketOnchain(row.marketId)); } catch { continue; }
+      if (!oc?.outcomeToken || (!oc.isResolved && !oc.isVoided)) continue;
+      let up = 0n, down = 0n;
+      try {
+        up = await exchange.client.getOutcomeBalance({ outcomeToken: oc.outcomeToken, account: me, id: oc.yesId }) as bigint;
+        down = await exchange.client.getOutcomeBalance({ outcomeToken: oc.outcomeToken, account: me, id: oc.noId }) as bigint;
+      } catch { continue; }
+      if (up === 0n && down === 0n) continue;
+      const idxs: number[] = oc.isVoided ? [0, 1] : [oc.winningOutcome === 0 ? 0 : 1];
+      for (const idx of idxs) {
+        const amt = idx === 0 ? up : down;
+        if (amt === 0n) continue;
+        out.push({
+          marketId: row.marketId, asset: row.asset, interval: row.interval,
+          outcomeIdx: idx, voided: oc.isVoided,
+          amount: Number(amt) / 10 ** oc.decimals,
+          payout: Number(amt) / 10 ** oc.decimals * (oc.isVoided ? 0.5 : 1),
+          tx: { to: MODULE, value: "0", chainId: CHAIN_ID,
+            data: encodeFunctionData({ abi: REDEEM_ABI, functionName: "redeem", args: [OPERATOR_ID, VENUE_ID as `0x${string}`, row.marketId, idx, amt] }) },
+        });
+      }
+    }
+    res.json({ claimable: out });
   } catch (e) { res.status(502).json({ error: String(e).slice(0, 200) }); }
 });
 

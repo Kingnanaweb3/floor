@@ -39,6 +39,7 @@ export default function AppPage() {
   const [positions, setPositions] = useState([]);
   const [agent, setAgent] = useState([]);
   const [spot, setSpot] = useState([]);
+  const [claims, setClaims] = useState([]);
   const [, force] = useState(0);
 
   const pub = useCallback(function () {
@@ -86,6 +87,9 @@ export default function AppPage() {
     if (!addr) return;
     pub().readContract({ address: TUSDC, abi: erc20Abi, functionName: "balanceOf", args: [addr] })
       .then(function (b) { setBalance(formatUnits(b, 6)); }).catch(function () {});
+    fetch(API + "/claimable/" + addr + "?t=" + Date.now(), { cache: "no-store" })
+      .then(function (r) { return r.json(); })
+      .then(function (j) { setClaims(j.claimable || []); }).catch(function () {});
     fetch(API + "/spot/" + addr + "?t=" + Date.now(), { cache: "no-store" })
       .then(function (r) { return r.json(); })
       .then(function (j) { setSpot(j.holdings || []); }).catch(function () {});
@@ -163,6 +167,24 @@ export default function AppPage() {
     setBusy("");
   }
 
+  async function claim() {
+    if (!account || claims.length === 0) return;
+    setBusy("claim"); setMsg(null);
+    try {
+      var wc = createWalletClient({ account: account, chain: somniaShannon, transport: custom(window.ethereum) });
+      var total = 0;
+      for (var i = 0; i < claims.length; i++) {
+        var c = claims[i];
+        var h = await wc.sendTransaction({ to: c.tx.to, data: c.tx.data, value: 0n, gas: 5000000n });
+        var r = await pub().waitForTransactionReceipt({ hash: h });
+        if (r.status === "success") total += c.payout;
+      }
+      setMsg({ text: "Redeemed " + total.toFixed(2) + " tUSDC" });
+      refresh(account);
+    } catch (e) { setMsg({ bad: true, text: (e && e.shortMessage) || (e && e.message) || String(e) }); }
+    setBusy("");
+  }
+
   async function cover() {
     if (!account || !sel) return;
     setBusy("cover"); setMsg(null);
@@ -182,7 +204,13 @@ export default function AppPage() {
         last = await wc.sendTransaction({ to: tx.to, data: tx.data, value: BigInt(tx.value), gas: 5000000n });
         await pub().waitForTransactionReceipt({ hash: last });
       }
-      setMsg({ text: "Covered " + body.quote.contracts + " contracts for " + body.quote.cost + " tUSDC", hash: last });
+      var paidNow = null;
+      try {
+        var st = await (await fetch(API + "/status/" + account + "?t=" + Date.now(), { cache: "no-store" })).json();
+        var hit = (st.positions || []).find(function (x) { return x.status === "Trading" && x.asset === sel.asset && x.interval === label(sel.intervalSec); });
+        if (hit && hit.avgPrice) paidNow = (Number(hit.contracts) * Number(hit.avgPrice));
+      } catch (e) {}
+      setMsg({ text: "Covered " + body.quote.contracts + " contracts for " + (paidNow !== null ? paidNow.toFixed(2) : body.quote.cost) + " tUSDC", hash: last });
       refresh(account);
     } catch (e) { setMsg({ bad: true, text: (e && e.shortMessage) || (e && e.message) || String(e) }); }
     setBusy("");
@@ -290,7 +318,7 @@ export default function AppPage() {
 
             {quote && quote.fillable ? (
               <div className="mt-5 grid grid-cols-2 gap-px overflow-hidden rounded-[10px] bg-line">
-                <div className="bg-bg px-4 py-3"><div className="mono-label text-ink3">Premium</div><div className="mt-1 font-mono text-[17px]">{quote.cost.toFixed(2)}</div></div>
+                <div className="bg-bg px-4 py-3"><div className="mono-label text-ink3">Premium (max)</div><div className="mt-1 font-mono text-[17px]">{quote.cost.toFixed(2)}</div></div>
                 <div className="bg-bg px-4 py-3"><div className="mono-label text-ink3">Pays if down</div><div className="mt-1 font-mono text-[17px]">{quote.payoutIfDown.toFixed(2)}</div></div>
                 <div className="bg-bg px-4 py-3"><div className="mono-label text-ink3">Down price</div><div className="mt-1 font-mono text-[17px]">{quote.avgPrice.toFixed(3)}</div></div>
                 <div className="bg-bg px-4 py-3"><div className="mono-label text-ink3">Worst case</div><div className="mt-1 font-mono text-[17px]">-{quote.maxLoss.toFixed(2)}</div></div>
@@ -336,7 +364,14 @@ export default function AppPage() {
 
         <div className="mt-5 grid items-stretch gap-5 lg:grid-cols-2">
           <div className="flex min-w-0 flex-col rounded-[18px] border border-line bg-card p-[26px]">
-            <div className="mono-label text-ink3">Your positions</div>
+            <div className="flex items-center justify-between">
+              <div className="mono-label text-ink3">Your positions</div>
+              {claims.length > 0 ? (
+                <button onClick={claim} disabled={busy !== ""} className="rounded-full bg-ink px-4 py-2 text-[12px] font-medium text-bg disabled:opacity-50">
+                  {busy === "claim" ? "Claiming..." : "Claim " + claims.reduce(function (a, c) { return a + c.payout; }, 0).toFixed(2)}
+                </button>
+              ) : null}
+            </div>
             {positions.length === 0 ? (
               <div className="py-8 text-center text-[12px] text-ink3">{account ? "No positions yet" : "Connect to see positions"}</div>
             ) : (
