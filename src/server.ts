@@ -247,4 +247,4 @@ app.get("/claimable/:address", async (req, res) => {
 });
 
 const PORT = Number(process.env.PORT ?? 8080);
-app.listen(PORT, () => console.log(`Floor API on :${PORT}`));
+app.listen(PORT, "0.0.0.0", () => console.log(`Floor API on :${PORT}`));
