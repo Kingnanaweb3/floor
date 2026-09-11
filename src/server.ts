@@ -246,5 +246,27 @@ app.get("/claimable/:address", async (req, res) => {
   } catch (e) { res.status(502).json({ error: String(e).slice(0, 200) }); }
 });
 
+app.get("/debug", async (_req, res) => {
+  const out: any = { venue: VENUE_ID.slice(0, 10) };
+  try {
+    const t = Date.now();
+    const rows: any[] = await exchange.client.listBinaryMarkets({ venueId: VENUE_ID, status: "Trading", limit: 40 });
+    out.indexerMs = Date.now() - t;
+    out.rows = rows.length;
+    out.sample = rows.slice(0, 3).map((r: any) => r.asset + "/" + r.intervalSec + "s");
+  } catch (e) { out.indexerError = String(e).slice(0, 220); }
+  try {
+    const t2 = Date.now();
+    const m = Object.values(await exchange.loadMarkets(true));
+    out.loadMarketsMs = Date.now() - t2;
+    out.loadMarketsCount = m.length;
+  } catch (e) { out.loadMarketsError = String(e).slice(0, 220); }
+  try {
+    const w = await findLiveWindows(exchange);
+    out.liveWindows = w.length;
+  } catch (e) { out.findError = String(e).slice(0, 220); }
+  res.json(out);
+});
+
 const PORT = Number(process.env.PORT ?? 8080);
 app.listen(PORT, "0.0.0.0", () => console.log(`Floor API on :${PORT}`));
